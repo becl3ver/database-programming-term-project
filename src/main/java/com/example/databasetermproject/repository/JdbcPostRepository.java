@@ -1,10 +1,13 @@
 package com.example.databasetermproject.repository;
 
+import com.example.databasetermproject.controller.SearchForm;
 import com.example.databasetermproject.domain.Post;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 
 import javax.sql.DataSource;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class JdbcPostRepository implements PostRepository {
     private final DataSource dataSource;
@@ -15,7 +18,7 @@ public class JdbcPostRepository implements PostRepository {
 
     @Override
     public Post save(Post post) {
-        String sql = "insert into post(uid, post_title, post_content), values(?, ?, ?)";
+        String sql = "insert into post(uid, post_title, post_content, area, phone, category) values(?, ?, ?, ?, ?, ?)";
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -24,17 +27,63 @@ public class JdbcPostRepository implements PostRepository {
             conn = getConnection();
             pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             pstmt.setInt(1, post.getUid());
-            pstmt.setString(2, post.getPostTitle());
-            pstmt.setString(3, post.getPostContent());
+            pstmt.setString(2, post.getTitle());
+            pstmt.setString(3, post.getContent());
+            pstmt.setString(4, post.getArea());
+            pstmt.setString(5, post.getPhone());
+            pstmt.setString(6, post.getCategory());
+
             pstmt.executeUpdate();
             rs = pstmt.getGeneratedKeys();
 
             if(rs.next()) {
-                post.setPostId(rs.getInt(1));
+                post.setId(rs.getInt(1));
             } else {
                 throw new SQLException("작성 실패");
             }
             return post;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        } finally {
+            close(conn, pstmt, rs);
+        }
+    }
+
+    @Override
+    public List<Post> find(SearchForm searchForm) {
+        String sql = "select * from post where 1";
+        if(searchForm.getArea() != "") {
+            sql += " and area like '%" + searchForm.getArea() + "%'";
+        }
+        if(searchForm.getCategory() != "") {
+            sql += " and category like '%" + searchForm.getArea() + "%'";
+        }
+        if(searchForm.getContent() != "") {
+            sql += " and content like '%" + searchForm.getContent() + "%' ";
+        }
+
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = getConnection();
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+
+            List<Post> posts = new ArrayList<>();
+
+            while(rs.next()) {
+                Post post = new Post();
+                post.setTitle(rs.getString("post_title"));
+                post.setContent(rs.getString("post_content"));
+                post.setArea(rs.getString("area"));
+                post.setPhone(rs.getString("phone"));
+                post.setWriter(Integer.toString(rs.getInt("uid"))); // 실제로는 범수 db에서 select 해서 가져와야 함
+                posts.add(post);
+            }
+
+            return posts;
         } catch (Exception e) {
             throw new IllegalStateException(e);
         } finally {
